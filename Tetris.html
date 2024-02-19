@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    canvas {
+      border: 1px solid #000;
+      display: block;
+      margin: 20px auto;
+    }
+
+    #score {
+      font-family: Arial, sans-serif;
+      font-size: 20px;
+      text-align: center;
+    }
+  </style>
+  <title>Tetris Game</title>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <canvas id="tetrisCanvas" width="300" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById('tetrisCanvas');
+    const context = canvas.getContext('2d');
+    const blockSize = 30;
+    const boardWidth = 10;
+    const boardHeight = 20;
+    let board = Array.from({ length: boardHeight }, () => Array(boardWidth).fill(0));
+
+    // Define todas as peças Tetris possíveis
+    const tetrominoes = [
+      {
+        shape: [
+          [1, 1, 1, 1], // L Tetromino
+        ],
+        color: 'red'
+      },
+      {
+        shape: [
+          [1, 1, 1], // J Tetromino
+          [0, 0, 1],
+        ],
+        color: 'blue'
+      },
+      {
+        shape: [
+          [1, 1, 1], // T Tetromino
+          [0, 1, 0],
+        ],
+        color: 'purple'
+      },
+      {
+        shape: [
+          [1, 1], // O Tetromino
+          [1, 1],
+        ],
+        color: 'yellow'
+      },
+      {
+        shape: [
+          [1, 1, 1], // S Tetromino
+          [0, 1, 1],
+        ],
+        color: 'green'
+      },
+      {
+        shape: [
+          [1, 1, 1], // Z Tetromino
+          [1, 0, 0],
+        ],
+        color: 'orange'
+      },
+      {
+        shape: [
+          [1, 1, 1, 1], // I Tetromino
+        ],
+        color: 'cyan'
+      },
+    ];
+
+    let currentPiece = {
+      shape: [],
+      x: 0,
+      y: 0,
+      color: ''
+    };
+
+    let score = 0;
+    const scoreElement = document.getElementById('score');
+
+    function drawSquare(x, y, color) {
+      context.fillStyle = color;
+      context.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+      context.strokeStyle = "#000";
+      context.strokeRect(x * blockSize, y * blockSize, blockSize, blockSize);
+    }
+
+    function drawBoard() {
+      for (let row = 0; row < board.length; row++) {
+        for (let col = 0; col < board[row].length; col++) {
+          if (board[row][col] !== 0) {
+            drawSquare(col, row, board[row][col]);
+          }
+        }
+      }
+    }
+
+    function drawPiece() {
+      for (let row = 0; row < currentPiece.shape.length; row++) {
+        for (let col = 0; col < currentPiece.shape[row].length; col++) {
+          if (currentPiece.shape[row][col] !== 0) {
+            drawSquare(currentPiece.x + col, currentPiece.y + row, currentPiece.color);
+          }
+        }
+      }
+    }
+
+    function draw() {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      drawBoard();
+      drawPiece();
+      drawScore();
+    }
+
+    function drawScore() {
+      scoreElement.textContent = `Score: ${score}`;
+    }
+
+    function movePieceDown() {
+      currentPiece.y++;
+      if (checkCollision()) {
+        currentPiece.y--; // Revert move if there's a collision
+        placePieceOnBoard();
+        const linesCleared = clearLines();
+        updateScore(linesCleared);
+        if (checkGameOver()) {
+          resetGame();
+        } else {
+          spawnNewPiece();
+        }
+      } else if (currentPiece.y + currentPiece.shape.length > boardHeight) {
+        currentPiece.y = boardHeight - currentPiece.shape.length; // Limit piece to bottom
+        placePieceOnBoard();
+        const linesCleared = clearLines();
+        updateScore(linesCleared);
+        if (checkGameOver()) {
+          resetGame();
+        } else {
+          spawnNewPiece();
+        }
+      }
+    }
+
+    function movePieceLeft() {
+      currentPiece.x--;
+      if (checkCollision()) {
+        currentPiece.x++; // Revert move if there's a collision
+      }
+    }
+
+    function movePieceRight() {
+      currentPiece.x++;
+      if (checkCollision()) {
+        currentPiece.x--; // Revert move if there's a collision
+      }
+    }
+
+    function rotatePiece() {
+      const originalShape = currentPiece.shape;
+      const rotatedShape = [];
+
+      for (let col = 0; col < originalShape[0].length; col++) {
+        const newRow = originalShape.map(row => row[col]).reverse();
+        rotatedShape.push(newRow);
+      }
+
+      currentPiece.shape = rotatedShape;
+
+      if (checkCollision()) {
+        currentPiece.shape = originalShape; // Revert rotation if there's a collision
+      }
+    }
+
+    function checkCollision() {
+      for (let row = 0; row < currentPiece.shape.length; row++) {
+        for (let col = 0; col < currentPiece.shape[row].length; col++) {
+          if (
+            currentPiece.shape[row][col] !== 0 &&
+            (board[currentPiece.y + row] && board[currentPiece.y + row][currentPiece.x + col] !== 0)
+          ) {
+            return true; // Collision detected
+          }
+        }
+      }
+      return false; // No collision
+    }
+
+    function placePieceOnBoard() {
+      for (let row = 0; row < currentPiece.shape.length; row++) {
+        for (let col = 0; col < currentPiece.shape[row].length; col++) {
+          if (currentPiece.shape[row][col] !== 0) {
+            board[currentPiece.y + row][currentPiece.x + col] = currentPiece.color;
+          }
+        }
+      }
+    }
+
+    function spawnNewPiece() {
+      const randomIndex = Math.floor(Math.random() * tetrominoes.length);
+      const randomTetromino = tetrominoes[randomIndex];
+
+      currentPiece = {
+        shape: randomTetromino.shape,
+        x: Math.floor((boardWidth - randomTetromino.shape[0].length) / 2),
+        y: 0,
+        color: randomTetromino.color,
+      };
+    }
+
+    function clearLines() {
+      let linesCleared = 0;
+
+      for (let row = boardHeight - 1; row >= 0; row--) {
+        if (board[row].every(cell => cell !== 0)) {
+          // Remove the filled row
+          board.splice(row, 1);
+          // Add a new empty row at the top
+          board.unshift(Array(boardWidth).fill(0));
+          linesCleared++;
+        }
+      }
+
+      return linesCleared;
+    }
+
+    function updateScore(linesCleared) {
+      // Increment score based on the number of lines cleared
+      switch (linesCleared) {
+        case 1:
+          score += 100;
+          break;
+        case 2:
+          score += 300;
+          break;
+        case 3:
+          score += 500;
+          break;
+        case 4:
+          score += 800;
+          break;
+      }
+    }
+
+    function checkGameOver() {
+      // Check if the top row of the board has any filled cells
+      return board[0].some(cell => cell !== 0);
+    }
+
+    function resetGame() {
+      // Reset all game variables
+      board = Array.from({ length: boardHeight }, () => Array(boardWidth).fill(0));
+      score = 0;
+      scoreElement.textContent = 'Score: 0';
+      spawnNewPiece();
+    }
+
+    function handleKeyPress(event) {
+      switch (event.key) {
+        case 'ArrowUp':
+          rotatePiece();
+          break;
+        case 'ArrowDown':
+          movePieceDown();
+          break;
+        case 'ArrowLeft':
+          movePieceLeft();
+          break;
+        case 'ArrowRight':
+          movePieceRight();
+          break;
+      }
+
+      draw();
+    }
+
+    // Configurações iniciais
+    document.addEventListener('keydown', handleKeyPress);
+    spawnNewPiece();
+    setInterval(gameLoop, 500);
+
+    function gameLoop() {
+      movePieceDown();
+      draw();
+    }
+  </script>
+</body>
+</html>
